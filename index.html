@@ -1,0 +1,827 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#030303">
+  <title>Моё расписание</title>
+  <style>
+    :root {
+      --bg1:#e8e8e8; --bg2:#e3e3e3; --bg3:#e3e3e3; --bg4:#f0f0f0;
+      --glass:rgba(255,255,255,.34); --glass-strong:rgba(255,255,255,.52);
+      --line:rgba(255,255,255,.66); --text:#303030; --muted:#7a7a7a;
+      --accent:#7f7f7f; --accent2:#8d8d8d; --shadow:0 18px 45px rgba(92,92,92,.14);
+      --radius:28px;
+    }
+    * { box-sizing:border-box; }
+    html,body { margin:0; }
+    body {
+      min-height:100vh;
+      font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif;
+      color:var(--text);
+      background: linear-gradient(120deg,var(--bg1),var(--bg2),var(--bg3),var(--bg4));
+      background-size: 300% 300%;
+      animation: bgShift 14s ease-in-out infinite;
+      overflow-x:hidden;
+    }
+    @keyframes bgShift {
+      0% { background-position:0% 50%; }
+      50% { background-position:100% 50%; }
+      100% { background-position:0% 50%; }
+    }
+    .bg { position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:-1; }
+    .blob { position:absolute; border-radius:50%; filter:blur(34px); opacity:.55; animation:float 16s ease-in-out infinite alternate; }
+    .b1 { width:320px; height:320px; left:-90px; top:-100px; background:#bebebe; }
+    .b2 { width:360px; height:360px; right:-120px; top:80px; background:#bbbbbb; animation-delay:-5s; }
+    .b3 { width:340px; height:340px; left:25%; bottom:-140px; background:#dfdfdf; animation-delay:-9s; }
+    @keyframes float { from { transform:translateY(0) translateX(0) scale(1); } to { transform:translateY(30px) translateX(20px) scale(1.08); } }
+    .app { max-width:710px; margin:0 auto; padding:18px 14px 42px; }
+    .glass {
+      background:linear-gradient(145deg, rgba(255,255,255,.48), rgba(255,255,255,.22));
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,.7);
+      -webkit-backdrop-filter: blur(24px) saturate(160%);
+      backdrop-filter: blur(24px) saturate(160%);
+    }
+    .topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; margin-bottom:16px; }
+    .brand { display:flex; align-items:center; gap:12px; min-width:0; }
+    .logo { width:44px; height:44px; border-radius:16px; display:grid; place-items:center; color:#ffffff; background:linear-gradient(135deg, var(--accent), var(--accent2)); box-shadow:0 10px 24px rgba(124,124,124,.28); }
+    .logo svg { width:22px; height:22px; }
+    .brand h1 { margin:0; font-size:18px; line-height:1.05; letter-spacing:-.5px; }
+    .brand p { margin:4px 0 0; font-size:11px; color:var(--muted); font-weight:700; letter-spacing:1.1px; text-transform:uppercase; }
+    .actions { display:flex; gap:10px; align-items:center; }
+    .icon-btn, .class-btn { border:0; font:inherit; cursor:pointer; }
+    .icon-btn { width:48px; height:48px; border-radius:18px; display:grid; place-items:center; background:rgba(255,255,255,.4); border:1px solid var(--line); color:#6d6d6d; }
+    .class-btn { display:flex; align-items:center; gap:10px; padding:11px 14px; border-radius:20px; background:rgba(255,255,255,.42); border:1px solid var(--line); color:#515151; font-weight:800; }
+    .class-badge { width:28px; height:28px; border-radius:11px; display:grid; place-items:center; color:#ffffff; background:linear-gradient(135deg,var(--accent),var(--accent2)); font-size:13px; }
+    .grid { display:none; grid-template-columns:1fr; gap:16px; }
+    html.js-ready .grid { display:grid; }
+    .preview-help { margin-top:14px; padding:22px 20px; text-align:center; font-size:15px; line-height:1.5; color:#565656; font-weight:750; }
+    html.js-ready .preview-help { display:none; }
+    .glyph { display:block; width:25px; height:25px; font-size:24px; line-height:25px; text-align:center; font-weight:750; user-select:none; }
+    .upload-glyph { font-size:29px; line-height:22px; }
+    .logo .glyph { font-size:25px; }
+    .card { padding:18px; }
+    .card-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px; }
+    .card-head-main { align-items:center; gap:12px; }
+    .card-actions { display:flex; align-items:center; gap:10px; margin-left:auto; flex-wrap:wrap; justify-content:flex-end; }
+    .card-actions .icon-btn { flex:0 0 auto; }
+    .card-actions .class-btn { flex:0 0 auto; }
+    .title { margin:0; font-size:21px; line-height:1; letter-spacing:-.8px; }
+    /* Ползунок дней: жидкое стекло, движение за пальцем и пружинная фиксация как в ChatGPT. */
+    .day-selector { margin-bottom:17px; }
+    .day-caption { display:flex; align-items:baseline; justify-content:center; gap:8px; min-height:26px; margin:0 0 12px; }
+    .day-caption strong { font-size:19px; font-weight:840; letter-spacing:-.5px; }
+    .day-caption small { font-size:12px; font-weight:750; color:#7f7f7f; }
+    .slider-shell {
+      --thumb-size:56px; --slider-inset:10px;
+      position:relative; width:100%; height:78px; border-radius:999px;
+      border:1px solid rgba(196,196,196,.85);
+      background:linear-gradient(105deg,rgba(255,255,255,.75),rgba(255,255,255,.55) 72%,rgba(232,232,232,.7));
+      box-shadow:inset 0 2px 5px rgba(255,255,255,.97),0 8px 25px rgba(77,77,77,.11);
+      -webkit-backdrop-filter:blur(18px) saturate(150%); backdrop-filter:blur(18px) saturate(150%);
+      cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none;
+      -webkit-tap-highlight-color:transparent; outline:none;
+    }
+    .slider-shell.dragging { cursor:grabbing; }
+    .slider-shell:focus-visible { outline:3px solid #898989; outline-offset:4px; }
+    .slider-color {
+      position:absolute; top:var(--slider-inset); bottom:var(--slider-inset); left:var(--slider-inset);
+      width:0; opacity:0; border-radius:999px; background:#676767;
+      box-shadow:inset 0 1px 3px rgba(59,59,59,.14); pointer-events:none;
+      transition:width 480ms cubic-bezier(.18,1.17,.25,1),opacity 190ms ease;
+    }
+    .slider-shell[data-index]:not([data-index="0"]) .slider-color { opacity:1; }
+    .slider-dots { position:absolute; inset:0; pointer-events:none; }
+    .slider-dots span {
+      position:absolute; left:0; top:50%; width:13px; height:13px;
+      transform:translate(-50%,-50%); border-radius:50%; background:#c9c9c9;
+      box-shadow:0 1px 2px rgba(56,56,56,.06);
+    }
+    .slider-dots span.passed { background:rgba(255,255,255,.26); box-shadow:none; }
+    .slider-thumb {
+      position:absolute; top:50%; left:38px; transform:translate(-50%,-50%);
+      width:var(--thumb-size); height:var(--thumb-size); border-radius:50%;
+      border:4px solid #676767; background:#ffffff; pointer-events:none;
+      box-shadow:0 2px 7px rgba(66,66,66,.11),inset 0 1px 1px #ffffff;
+      will-change:left; transition:left 480ms cubic-bezier(.18,1.17,.25,1);
+    }
+    .slider-shell.dragging .slider-thumb,.slider-shell.dragging .slider-color { transition:none; }
+    @media (prefers-reduced-motion:reduce) {
+      .slider-shell .slider-thumb,.slider-shell .slider-color { transition-duration:0ms; }
+    }
+    .hero { position:relative; overflow:hidden; border-radius:24px; padding:20px; margin-bottom:14px; min-height:132px; color:#ffffff; background:linear-gradient(135deg, #868686, #8c8c8c 55%, #a6a6a6); }
+    .hero:before { content:""; position:absolute; width:220px; height:220px; right:-80px; top:-120px; border-radius:50%; border:32px solid rgba(255,255,255,.14); }
+    .hero:after { content:""; position:absolute; width:120px; height:120px; right:-20px; bottom:-40px; border-radius:50%; background:rgba(255,255,255,.08); box-shadow:-130px -20px 0 -40px rgba(255,255,255,.07); }
+    .hero-label { font-size:11px; text-transform:uppercase; letter-spacing:1.7px; font-weight:800; opacity:.8; }
+    .hero-date { font-size:34px; line-height:1; margin:10px 0 6px; font-weight:900; letter-spacing:-1.3px; }
+    .hero-sub { font-size:15px; font-weight:700; opacity:.9; }
+    .hero-class { position:absolute; right:22px; top:22px; font-size:40px; font-weight:900; opacity:.35; }
+    .mini-row { display:flex; justify-content:space-between; align-items:center; gap:10px; color:var(--muted); font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:1.5px; margin-bottom:10px; }
+    .lesson-list { display:flex; flex-direction:column; gap:0; }
+    /* An invisible but touch-friendly gap between lessons. */
+    .break-toggle { position:relative; display:block; flex:0 0 18px; width:100%; height:18px; padding:0; border:0; background:transparent; color:transparent; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+    .break-toggle::before { content:""; position:absolute; inset:-7px 0; }
+    .break-toggle:focus-visible { outline:2px solid #7f7f7f; outline-offset:2px; border-radius:8px; }
+    .lesson { display:flex; align-items:center; gap:12px; min-height:66px; border-radius:19px; padding:11px 12px; background:rgba(255,255,255,.32); border:1px solid rgba(255,255,255,.62); }
+    .num { width:42px; height:42px; flex:0 0 42px; display:grid; place-items:center; border-radius:14px; background:linear-gradient(145deg, rgba(141,141,141,.22), rgba(143,143,143,.18)); color:#6c6c6c; font-weight:900; }
+    .lesson-main { min-width:0; flex:1; }
+    .lesson-name { font-weight:800; font-size:15px; line-height:1.15; word-break:break-word; }
+    .lesson-sub { color:#727272; font-size:13px; margin-top:5px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:.1px; }
+    .room { padding:8px 10px; border-radius:12px; background:rgba(255,255,255,.52); border:1px solid rgba(255,255,255,.62); color:#717171; font-size:12px; font-weight:800; white-space:nowrap; }
+    .empty { padding:24px 12px; text-align:center; color:var(--muted); font-weight:700; }
+    .toast { position:fixed; left:50%; bottom:max(24px, env(safe-area-inset-bottom)); transform:translateX(-50%) translateY(10px); background:rgba(48,48,48,.84); color:#ffffff; padding:12px 16px; border-radius:14px; font-size:14px; opacity:0; transition:.25s; pointer-events:none; z-index:40; max-width:calc(100vw - 30px); text-align:center; }
+    .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+    .gate { position:fixed; inset:0; display:grid; place-items:center; padding:18px; background:rgba(235,235,235,.36); backdrop-filter:blur(14px); z-index:50; }
+    .gate[hidden] { display:none !important; }
+    .gate-card { width:min(420px,100%); padding:26px 20px 20px; border-radius:32px; background:linear-gradient(145deg, rgba(255,255,255,.62), rgba(255,255,255,.32)); border:1px solid rgba(255,255,255,.7); box-shadow:0 20px 60px rgba(98,98,98,.16); }
+    .gate-card h2 { margin:0 0 18px; font-size:30px; line-height:.98; letter-spacing:-1.4px; }
+    .gate-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+    .gate-card select { width:100%; padding:14px 16px; border-radius:18px; border:1px solid rgba(255,255,255,.8); background:rgba(255,255,255,.7); font:inherit; font-weight:800; color:var(--text); }
+    .save-btn { width:100%; padding:15px 18px; border:0; border-radius:20px; font:inherit; font-weight:900; color:#ffffff; background:linear-gradient(135deg,var(--accent),var(--accent2)); box-shadow:0 10px 24px rgba(127,127,127,.24); cursor:pointer; }
+    input[type=file] { display:none; }
+
+    @media (max-width: 560px) {
+      .topbar { padding:12px; }
+      .brand p { display:none; }
+      .actions { gap:8px; }
+      .icon-btn { width:44px; height:44px; border-radius:16px; }
+      .class-btn { padding:10px 12px; }
+      .card { padding:16px; }
+      .title { font-size:20px; }
+      .hero-date { font-size:30px; }
+  
+    }
+
+    /* Midnight glass theme — dark everywhere, with a gently twinkling star field. */
+    :root {
+      color-scheme:dark;
+      --bg1:#040404; --bg2:#0d0d0d; --bg3:#0b0b0b; --bg4:#030303;
+      --glass:rgba(18,18,18,.73); --glass-strong:rgba(28,28,28,.84);
+      --line:rgba(209,209,209,.14); --text:#f4f4f4; --muted:#a9a9a9;
+      --accent:#969696; --accent2:#afafaf;
+      --shadow:0 22px 64px rgba(0,0,0,.42);
+    }
+    html { background:#040404; }
+    body {
+      background:linear-gradient(125deg,var(--bg1),var(--bg2) 44%,var(--bg3) 71%,var(--bg4));
+      background-size:260% 260%;
+      animation:nightDrift 26s ease-in-out infinite;
+    }
+    body::before {
+      content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+      background:radial-gradient(ellipse at 20% 15%,rgba(88,88,88,.12),transparent 52%),
+                 radial-gradient(ellipse at 86% 76%,rgba(105,105,105,.10),transparent 45%);
+    }
+    @keyframes nightDrift {0%,100%{background-position:0% 45%}50%{background-position:100% 65%}}
+    .bg {z-index:0;}
+    .blob {filter:blur(75px);opacity:.14;animation-duration:23s;}
+    .b1 {background:#646464;}.b2 {background:#676767;}.b3 {background:#666666;}
+    .stars {position:absolute;inset:0;overflow:hidden;}
+    .spark {
+      position:absolute; display:block; width:var(--size);height:var(--size);border-radius:50%;
+      background:#f6f6f6; opacity:0; filter:drop-shadow(0 0 4px rgba(204,204,204,.7));
+      box-shadow:0 0 8px 1px rgba(170,170,170,.40);
+      animation:twinkle var(--duration,6s) ease-in-out var(--delay,0s) infinite;
+      will-change:opacity,transform;
+    }
+    .spark-cross::before,.spark-cross::after {
+      content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+      background:linear-gradient(90deg,transparent,rgba(238,238,238,.9),transparent);
+      border-radius:100px;
+    }
+    .spark-cross::before {width:13px;height:1px;}
+    .spark-cross::after {width:1px;height:13px; background:linear-gradient(0deg,transparent,rgba(238,238,238,.9),transparent);}
+    @keyframes twinkle {0%,100%{opacity:.02;transform:scale(.55)}40%{opacity:.88;transform:scale(1.12)}58%{opacity:.62;transform:scale(.96)}75%{opacity:.08;transform:scale(.65)}}
+    .app {position:relative;z-index:1;}
+    .glass {
+      background:linear-gradient(145deg,rgba(31,31,31,.82),rgba(13,13,13,.84));
+      border:1px solid var(--line);
+      box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.065);
+      -webkit-backdrop-filter:blur(24px) saturate(135%);
+      backdrop-filter:blur(24px) saturate(135%);
+    }
+    .topbar {animation:riseIn .82s cubic-bezier(.2,.8,.2,1) both;}
+    .card {animation:riseIn .9s .08s cubic-bezier(.2,.8,.2,1) both;}
+    @keyframes riseIn {from{opacity:0;transform:translateY(20px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+    .brand p {color:#adadad;}
+    .logo {
+      background:linear-gradient(145deg,#4b4b4b,#868686);
+      box-shadow:0 9px 28px rgba(112,112,112,.28),inset 0 1px 0 rgba(255,255,255,.28);
+      animation:logoBreathe 6s ease-in-out infinite;
+    }
+    @keyframes logoBreathe {0%,100%{box-shadow:0 9px 28px rgba(112,112,112,.22)}50%{box-shadow:0 9px 36px rgba(149,149,149,.45)}}
+    .icon-btn,.class-btn,.room {
+      background:rgba(255,255,255,.055);border:1px solid var(--line);color:#dddddd;
+    }
+    .class-btn {color:#e8e8e8;}
+    .class-btn:disabled {opacity:.48;cursor:not-allowed;}
+    .class-badge {background:linear-gradient(135deg,#5f5f5f,#929292);}
+    .icon-btn,.class-btn,.save-btn,.upload-primary {
+      transition:transform .36s cubic-bezier(.16,1,.3,1),box-shadow .36s ease,
+                 border-color .36s ease,background .36s ease,filter .36s ease;
+    }
+    .icon-btn:active,.class-btn:active,.save-btn:active,.upload-primary:active {transform:scale(.96);}
+    @media (hover:hover) {
+      .icon-btn:hover,.class-btn:hover {transform:translateY(-2px);border-color:rgba(191,191,191,.4);background:rgba(139,139,139,.13);}
+      .save-btn:hover,.upload-primary:hover {transform:translateY(-3px);box-shadow:0 15px 40px rgba(135,135,135,.26);filter:brightness(1.08);}
+      .lesson:hover {border-color:rgba(177,177,177,.26);background:rgba(132,132,132,.105);transform:translateY(-2px);}
+    }
+    .preview-help {color:var(--muted);}
+    .day-caption small {color:#b8b8b8;}
+    .slider-shell {
+      border:1px solid rgba(182,182,182,.23);
+      background:linear-gradient(120deg,rgba(29,29,29,.94),rgba(18,18,18,.97));
+      box-shadow:inset 0 2px 9px rgba(0,0,0,.25),0 8px 24px rgba(0,0,0,.2);
+    }
+    .slider-shell:focus-visible {outline:3px solid #989898;}
+    .slider-color {
+      background:linear-gradient(90deg,rgba(83,83,83,.48),rgba(146,146,146,.72));
+      box-shadow:inset 0 1px 3px rgba(182,182,182,.23);
+      transition:width 600ms cubic-bezier(.2,1,.22,1),opacity 260ms ease;
+    }
+    .slider-dots span {background:#545454;box-shadow:0 0 2px rgba(0,0,0,.6);}
+    .slider-dots span.passed {background:#dedede;box-shadow:0 0 8px rgba(176,176,176,.5);}
+    .slider-thumb {
+      border:3px solid #b3b3b3;
+      background:radial-gradient(circle at 35% 28%,#f8f8f8,#adadad 75%,#7e7e7e);
+      box-shadow:0 0 20px rgba(162,162,162,.48),0 2px 10px rgba(0,0,0,.38);
+      transition:left 600ms cubic-bezier(.2,1,.22,1);
+    }
+    .hero {
+      background:linear-gradient(124deg,#191919,#242424 56%,#252525);
+      border:1px solid rgba(193,193,193,.2);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 10px 30px rgba(0,0,0,.24);
+    }
+    .hero::before {border-color:rgba(177,177,177,.07);}
+    .hero::after {
+      width:65%;height:260%;right:auto;bottom:auto;left:-115%;top:-70%;
+      border-radius:0;background:linear-gradient(90deg,transparent,rgba(197,197,197,.1),transparent);
+      transform:rotate(24deg);box-shadow:none;animation:heroShine 11s ease-in-out infinite;
+      pointer-events:none;
+    }
+    @keyframes heroShine {0%,17%{left:-115%;opacity:0}37%{opacity:.9}59%,100%{left:160%;opacity:0}}
+    .hero-class {color:#cacaca;opacity:.3;}
+    .lesson {
+      background:rgba(255,255,255,.044);
+      border:1px solid rgba(223,223,223,.105);
+      transition:transform .36s cubic-bezier(.2,.8,.2,1),border-color .36s,background .36s;
+      animation:lessonAppear .58s cubic-bezier(.2,.75,.22,1) both;
+      animation-delay:var(--lesson-delay,0ms);
+    }
+    @keyframes lessonAppear {from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+    .num {background:linear-gradient(145deg,rgba(130,130,130,.25),rgba(100,100,100,.2));color:#bebebe;}
+    .lesson-sub {color:#aeaeae;}
+    .room {color:#c9c9c9;}
+    .mini-row {color:#afafaf;}
+    .empty {color:#a8a8a8;}
+    .break-toggle:focus-visible {outline-color:#aeaeae;}
+    .toast {background:rgba(26,26,26,.96);border:1px solid rgba(177,177,177,.2);box-shadow:0 12px 40px rgba(0,0,0,.4);transition:opacity .35s,transform .45s cubic-bezier(.2,.8,.2,1);}
+    .gate {background:rgba(2,2,2,.68);-webkit-backdrop-filter:blur(15px);backdrop-filter:blur(15px);animation:gateFade .35s ease both;}
+    @keyframes gateFade {from{opacity:0}to{opacity:1}}
+    .gate-card {
+      background:linear-gradient(145deg,rgba(30,30,30,.98),rgba(11,11,11,.98));
+      border:1px solid rgba(194,194,194,.2);
+      box-shadow:0 28px 85px rgba(0,0,0,.65);animation:riseIn .5s cubic-bezier(.2,.8,.2,1) both;
+    }
+    .gate-card select {background:#1f1f1f;border:1px solid rgba(194,194,194,.22);color:#f1f1f1;}
+    .file-status {color:#b4b4b4;font-size:12px;line-height:1.4;font-weight:700;margin:-5px 0 15px;overflow-wrap:anywhere;}
+    /* Before a file is imported, show a dedicated empty-state screen. */
+    html.js-ready .grid:not([hidden]) {display:grid;}
+    .upload-onboarding {
+      position:relative;overflow:hidden;
+      display:flex;flex-direction:column;align-items:center;text-align:center;
+      padding:52px 24px 48px;min-height:410px;
+      animation:riseIn .9s .12s cubic-bezier(.2,.8,.2,1) both;
+    }
+    .upload-onboarding[hidden],.grid[hidden] {display:none!important;}
+    .upload-onboarding::before {
+      content:"";position:absolute;inset:-30% -30% auto;
+      height:80%;background:radial-gradient(ellipse,rgba(127,127,127,.16),transparent 70%);
+      pointer-events:none;
+    }
+    .upload-mark {
+      position:relative;display:grid;place-items:center;
+      width:84px;height:84px;border-radius:25px;margin-bottom:25px;
+      background:linear-gradient(150deg,rgba(146,146,146,.2),rgba(80,80,80,.12));
+      border:1px solid rgba(183,183,183,.25);color:#d3d3d3;font-size:45px;
+      box-shadow:0 0 48px rgba(133,133,133,.1),inset 0 1px 0 rgba(255,255,255,.08);
+      animation:floatMark 6.5s ease-in-out infinite;
+    }
+    @keyframes floatMark {0%,100%{transform:translateY(0) rotate(-7deg)}50%{transform:translateY(-9px) rotate(6deg)}}
+    .upload-eyebrow {color:#b5b5b5;font-size:11px;font-weight:800;letter-spacing:2.4px;margin-bottom:13px;}
+    .upload-onboarding h2 {position:relative;max-width:420px;margin:0;font-size:clamp(26px,5vw,38px);line-height:1.12;letter-spacing:-1.15px;}
+    .upload-onboarding p {max-width:400px;margin:17px 0 25px;color:#b9b9b9;font-size:15px;line-height:1.65;}
+    .upload-primary {
+      position:relative;min-height:56px;display:inline-flex;gap:11px;align-items:center;justify-content:center;
+      padding:14px 25px;border:1px solid rgba(224,224,224,.2);border-radius:18px;
+      box-shadow:0 12px 36px rgba(110,110,110,.18);font:inherit;font-weight:850;font-size:15px;cursor:pointer;
+    }
+    .upload-primary span {font-size:24px;line-height:18px;}
+    .upload-hint {margin-top:20px;color:#959595;font-size:12px;line-height:1.7;}
+    :is(.icon-btn,.class-btn,.save-btn,.upload-primary,.gate-card select):focus-visible {
+      outline:2px solid #b5b5b5;outline-offset:3px;
+    }
+    @media (max-width:560px) {
+      .upload-onboarding {padding:42px 20px;min-height:430px;}
+      .upload-mark {width:72px;height:72px;font-size:39px;}
+    }
+    @media (prefers-reduced-motion:reduce) {
+      *,*::before,*::after {animation:none!important;transition-duration:.01ms!important;scroll-behavior:auto!important;}
+    }
+  
+    /* Pure black + white / silver theme. Purple is intentionally removed. */
+    :root {
+      color-scheme:dark;
+      --bg1:#030303; --bg2:#0b0b0b; --bg3:#080808; --bg4:#020202;
+      --glass:rgba(18,18,18,.85); --glass-strong:rgba(31,31,31,.86);
+      --line:rgba(255,255,255,.19); --text:#f8f8f8; --muted:#bababa;
+      --accent:#ffffff; --accent2:#cfcfcf;
+      --shadow:0 22px 64px rgba(0,0,0,.55);
+    }
+    html {background:#030303;}
+    body {
+      background:linear-gradient(125deg,#030303,#101010 44%,#080808 71%,#030303);
+      background-size:260% 260%;
+    }
+    body::before {
+      background:radial-gradient(ellipse at 20% 15%,rgba(255,255,255,.055),transparent 52%),
+                 radial-gradient(ellipse at 86% 76%,rgba(255,255,255,.035),transparent 45%);
+    }
+    .blob {opacity:.075;filter:blur(78px);}
+    .b1,.b2,.b3 {background:#efefef;}
+    .spark {background:#fff;filter:drop-shadow(0 0 5px rgba(255,255,255,.8));box-shadow:0 0 10px 1px rgba(255,255,255,.45);}
+    .spark-cross::before {background:linear-gradient(90deg,transparent,rgba(255,255,255,.95),transparent);}
+    .spark-cross::after {background:linear-gradient(0deg,transparent,rgba(255,255,255,.95),transparent);}
+    .glass {background:linear-gradient(145deg,rgba(31,31,31,.92),rgba(10,10,10,.91));}
+    .title,.day-caption strong,.lesson-name,.hero-date {color:#f8f8f8;}
+    .icon-btn,.class-btn,.room {background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.17);color:#f4f4f4;}
+    .class-btn {color:#f4f4f4;}
+    .class-badge {color:#111; background:linear-gradient(140deg,#fff,#cdcdcd);box-shadow:0 1px 12px rgba(255,255,255,.16);}
+    .icon-btn:hover,.class-btn:hover {border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.12);}
+    .day-caption small,.lesson-sub,.mini-row,.file-status {color:#bebebe;}
+    .slider-shell {
+      border:1px solid rgba(255,255,255,.24);
+      background:linear-gradient(110deg,rgba(39,39,39,.97),rgba(12,12,12,.97));
+      box-shadow:inset 0 2px 9px rgba(0,0,0,.35),0 8px 24px rgba(0,0,0,.28);
+    }
+    .slider-color {background:linear-gradient(90deg,rgba(156,156,156,.49),rgba(240,240,240,.67));box-shadow:inset 0 1px 3px rgba(255,255,255,.2);}
+    .slider-dots span {background:#595959;}
+    .slider-dots span.passed {background:#fff;box-shadow:0 0 8px rgba(255,255,255,.5);}
+    .slider-thumb {
+      border:3px solid #f7f7f7;
+      background:radial-gradient(circle at 35% 28%,#fff,#e5e5e5 75%,#bdbdbd);
+      box-shadow:0 0 20px rgba(255,255,255,.27),0 2px 10px rgba(0,0,0,.45);
+    }
+    .slider-shell:focus-visible,.break-toggle:focus-visible {outline-color:#fff;}
+    .hero {background:linear-gradient(125deg,#1b1b1b,#292929 57%,#202020);border:1px solid rgba(255,255,255,.18);}
+    .hero::before {border-color:rgba(255,255,255,.065);}
+    .hero::after {background:linear-gradient(90deg,transparent,rgba(255,255,255,.10),transparent);}
+    .hero-class {color:#f7f7f7;opacity:.24;}
+    .lesson {background:rgba(255,255,255,.055);border-color:rgba(255,255,255,.11);}
+    .lesson:hover {border-color:rgba(255,255,255,.3);background:rgba(255,255,255,.095);}
+    .num {background:linear-gradient(145deg,rgba(255,255,255,.19),rgba(255,255,255,.07));color:#f4f4f4;}
+    .room {color:#dedede;}
+    .toast {background:rgba(26,26,26,.98);border:1px solid rgba(255,255,255,.21);}
+    .gate {background:rgba(0,0,0,.73);}
+    .gate-card {background:linear-gradient(145deg,rgba(36,36,36,.98),rgba(9,9,9,.98));border:1px solid rgba(255,255,255,.2);}
+    .gate-card select {background:#242424;border:1px solid rgba(255,255,255,.2);color:#f8f8f8;}
+    .save-btn,.upload-primary {
+      background:linear-gradient(122deg,#fff,#e0e0e0 64%,#bdbdbd);
+      color:#101010;
+      border:1px solid rgba(255,255,255,.7);
+      box-shadow:0 10px 30px rgba(255,255,255,.1);
+    }
+    .save-btn:hover,.upload-primary:hover {box-shadow:0 14px 37px rgba(255,255,255,.2);filter:brightness(1.08);}
+    .upload-onboarding::before {background:radial-gradient(ellipse,rgba(255,255,255,.09),transparent 70%);}
+    .upload-mark {
+      background:linear-gradient(150deg,rgba(255,255,255,.18),rgba(255,255,255,.04));
+      border:1px solid rgba(255,255,255,.26);color:#fff;
+      box-shadow:0 0 48px rgba(255,255,255,.09),inset 0 1px 0 rgba(255,255,255,.10);
+    }
+    .upload-eyebrow {color:#e2e2e2;}
+    .upload-onboarding p {color:#c9c9c9;}
+    .upload-hint {color:#aaa;}
+    :is(.icon-btn,.class-btn,.save-btn,.upload-primary,.gate-card select):focus-visible {outline:2px solid #fff;outline-offset:3px;}
+    @media (max-width:430px) {
+      .card-head-main {gap:8px;}
+      .card-actions {gap:7px;}
+      .title {font-size:19px;}
+      .card-actions .icon-btn {width:42px;height:42px;}
+      .card-actions .class-btn {padding:7px 9px;gap:7px;font-size:13px;}
+      .card-actions .class-badge {width:26px;height:26px;}
+    }
+</style>
+</head>
+<body>
+  <div class="bg" aria-hidden="true">
+    <div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
+    <div class="stars" id="stars"></div>
+  </div>
+
+  <div class="app">
+
+    <div class="preview-help glass" id="previewHelp">Открой сайт в Safari. В просмотрщике файлов кнопки не работают.</div>
+
+    <section class="upload-onboarding glass" id="uploadOnboarding" hidden>
+      <div class="upload-mark" aria-hidden="true">✦</div>
+      <div class="upload-eyebrow">МОЁ РАСПИСАНИЕ</div>
+      <h2>Твоё расписание начинается здесь</h2>
+      <p>Загрузи таблицу Excel с уроками — и здесь появится расписание твоего класса.</p>
+      <button type="button" class="upload-primary" id="uploadFirst"><span aria-hidden="true">↑</span> Загрузить расписание</button>
+      <div class="upload-hint">Форматы .xls, .xlsx, .xlsm<br>После загрузки файл сохранится в этом браузере.</div>
+    </section>
+
+    <div class="grid" id="scheduleGrid" hidden>
+      <section class="glass card">
+        <div class="card-head card-head-main">
+          <h2 class="title">Расписание</h2>
+          <div class="card-actions">
+            <button class="icon-btn" id="uploadTop" aria-label="Загрузить файл"><span class="glyph upload-glyph" aria-hidden="true">↑</span></button>
+            <button class="class-btn" id="editClass"><span class="class-badge" id="classBadge">—</span><span id="classText">Класс</span></button>
+          </div>
+        </div>
+        <div class="file-status" id="fileStatus"></div>
+        <div class="day-selector">
+          <div class="day-caption"><strong id="sliderDayName">Понедельник</strong><small id="sliderDayStatus"></small></div>
+          <div class="slider-shell" id="daySlider" role="slider" tabindex="0" data-index="0"
+               aria-label="Выбрать день недели" aria-valuemin="0" aria-valuemax="5"
+               aria-valuenow="0" aria-valuetext="Понедельник">
+            <div class="slider-color" id="sliderFill" aria-hidden="true"></div>
+            <div class="slider-dots" id="sliderDots" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+            <div class="slider-thumb" id="dayThumb" aria-hidden="true"></div>
+          </div>
+        </div>
+        <div class="hero">
+          <div class="hero-class" id="heroClass">—</div>
+          <div class="hero-label" id="heroTop">День недели</div>
+          <div class="hero-date" id="heroDate">—</div>
+          <div class="hero-sub" id="heroSub">—</div>
+        </div>
+        <div class="mini-row"><span id="upcomingWeekday">—</span><span id="upcomingCount">0 уроков</span></div>
+        <div class="lesson-list" id="upcomingLessons"></div>
+      </section>
+    </div>
+  </div>
+
+  <div class="gate" id="gate" hidden>
+    <div class="gate-card">
+      <h2 id="gateTitle">Твой класс</h2>
+      <div class="gate-row">
+        <select id="classNumber"><option value="">Номер</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option></select>
+        <select id="classLetter"><option value="">Буква</option><option>А</option><option>Б</option><option>В</option><option>Г</option><option>Д</option></select>
+      </div>
+      <button class="save-btn" id="saveClass">Готово</button>
+    </div>
+  </div>
+
+  <input id="fileInput" type="file" accept=".xls,.xlsx,.xlsm">
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const SETTINGS_KEY = 'glass-mini-settings-v1';
+    const SCHEDULE_KEY = 'midnight-mini-schedule-v2';
+    const DAYS = ['Понедельник','Вторник','Среда','Четверг','Пятница','Суббота'];
+    const SHORT = ['Пн','Вт','Ср','Чт','Пт','Сб'];
+    const MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+    const $ = id => document.getElementById(id);
+    const getStored = key => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } };
+    const setStored = (key,val) => { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} };
+    const clean = v => (v===undefined || v===null) ? '' : String(v).trim().replace(/^(\d+)\.0$/, '$1');
+    const validSchedule = s => s && typeof s === 'object' && s.start && s.end && s.classes;
+    let schedule = validSchedule(getStored(SCHEDULE_KEY)) ? getStored(SCHEDULE_KEY) : null;
+    let settings = getStored(SETTINGS_KEY) || {};
+    let currentClass = /^([1-9]|1[01])[АБВГД]$/.test(settings.className || '') ? settings.className : '';
+    let activeWeekday = 0;
+    let daySliderDragging = false;
+    let toastTimer;
+
+    function dateFromISO(iso) { const [y,m,d] = iso.split('-').map(Number); return new Date(y,m-1,d,12,0,0); }
+    function dateKey(d) { return [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-'); }
+    function addDays(date, n) { const d = new Date(date); d.setDate(d.getDate()+n); return d; }
+    function weekIndex(date) { return (date.getDay()+6)%7; }
+    function niceDate(date) { return new Intl.DateTimeFormat('ru-RU', { day:'numeric', month:'long' }).format(date); }
+    function lessonWord(n) { const x=Math.abs(n)%100, d=x%10; return x>10&&x<20?'уроков':d===1?'урок':d>=2&&d<=4?'урока':'уроков'; }
+    function inWeek(date) { return !!schedule && dateKey(date) >= schedule.start && dateKey(date) <= schedule.end; }
+    function classLessons(day) { return schedule?.classes?.[currentClass]?.[String(day)] || []; }
+    function showToast(text, duration=2600) { const el=$('toast'); el.textContent=text; el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'), duration); }
+    function escapeHTML(s) { return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+    function normalizeClass(v) { const name=clean(v).toUpperCase().replace(/\s+/g,'').replace(/Ё/g,'Е'); return /^([1-9]|1[01])[АБВГД]$/.test(name)?name:null; }
+    function getDateInfo(text) {
+      const source = String(text).toLowerCase();
+      const monthAlt = 'января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря';
+      const cross = new RegExp(String.raw`(\d{1,2})\s+(${monthAlt})\s*[-–—]\s*(\d{1,2})\s+(${monthAlt})`, 'i');
+      const same = new RegExp(String.raw`(\d{1,2})\s*[-–—]\s*(\d{1,2})\s+(${monthAlt})`, 'i');
+      const y = source.match(/\b20\d{2}\b/);
+      let year = y ? Number(y[0]) : new Date().getFullYear(), start, end;
+      const crossMatch = source.match(cross);
+      if (crossMatch) {
+        const sm = MONTHS.indexOf(crossMatch[2]), em = MONTHS.indexOf(crossMatch[4]);
+        start = new Date(year, sm, Number(crossMatch[1]), 12);
+        end = new Date(year + (em < sm ? 1 : 0), em, Number(crossMatch[3]), 12);
+      } else {
+        const sameMatch = source.match(same);
+        if (!sameMatch) return null;
+        const m = MONTHS.indexOf(sameMatch[3]);
+        start = new Date(year, m, Number(sameMatch[1]), 12);
+        end = new Date(year, m + (Number(sameMatch[2]) < Number(sameMatch[1]) ? 1 : 0), Number(sameMatch[2]), 12);
+      }
+      if (Number.isNaN(start.valueOf()) || Number.isNaN(end.valueOf()) || end < start) return null;
+      return { start: dateKey(start), end: dateKey(end), title: `${niceDate(start)} — ${niceDate(end)}` };
+    }
+    function looksLikeDay(v) { const s=clean(v).toLowerCase().replace(/ё/g,'е'); return ['понедельник','вторник','среда','четверг','пятница','суббота'].indexOf(s); }
+    const LESSON_TIMES = {
+      1: '08:30 – 09:10',
+      2: '09:25 – 10:05',
+      3: '10:20 – 11:00',
+      4: '11:20 – 12:00',
+      5: '12:20 – 13:00',
+      6: '13:15 – 13:55',
+      7: '14:05 – 14:45',
+      8: '14:55 – 15:35'
+    };
+    // Длительность перемен из школьного расписания звонков.
+    const BREAK_MINUTES = { 1:15, 2:15, 3:20, 4:20, 5:15, 6:10, 7:10 };
+    function renderBreak(afterNumber) {
+      const minutes = BREAK_MINUTES[afterNumber];
+      if (!minutes) return '';
+      return `<button type="button" class="break-toggle" data-break-minutes="${minutes}" aria-label="Показать длительность перемены после ${afterNumber}-го урока"></button>`;
+    }
+    function renderLessonList(lessons) {
+      return lessons.map((lesson, i) => {
+        const next = lessons[i+1];
+        const currentNumber = Number(lesson.number) || i+1;
+        const nextNumber = next && (Number(next.number) || i+2);
+        const hasAdjacentLesson = nextNumber === currentNumber + 1;
+        return renderLesson(lesson, i) + (hasAdjacentLesson ? renderBreak(currentNumber) : '');
+      }).join('');
+    }
+    function renderLesson(lesson, i) {
+      const room=clean(lesson.room);
+      const number=Number(lesson.number)||i+1;
+      const time=LESSON_TIMES[number] || `${number}-й урок`;
+      return `<div class="lesson" style="--lesson-delay:${Math.min(i,9)*48}ms"><div class="num">${String(number).padStart(2,'0')}</div><div class="lesson-main"><div class="lesson-name">${escapeHTML(lesson.name)}</div><div class="lesson-sub">${time}</div></div>${room?`<div class="room">${escapeHTML(room.toLowerCase()==='сз'?'С/з':room)}</div>`:''}</div>`;
+    }
+    function renderEmpty(target, text) { target.innerHTML = `<div class="empty">${escapeHTML(text)}</div>`; }
+    function renderUpcoming() {
+      if (!schedule) {
+        $('heroClass').textContent = currentClass || '—';
+        $('heroDate').textContent = '—';
+        $('heroSub').textContent = 'Загрузи Excel-файл';
+        $('upcomingCount').textContent = '0 уроков';
+        renderEmpty($('upcomingLessons'), 'Сначала загрузи расписание');
+        return;
+      }
+      const day = activeWeekday;
+      const date = addDays(dateFromISO(schedule.start), day);
+      const hasClass = Boolean(schedule.classes[currentClass]);
+      const lessons = hasClass ? classLessons(day) : [];
+      $('heroClass').textContent = currentClass || '—';
+      $('heroTop').textContent = DAYS[day];
+      $('heroDate').textContent = niceDate(date);
+      $('heroSub').textContent = `${lessons.length} ${lessonWord(lessons.length)}`;
+      $('upcomingWeekday').textContent = DAYS[day];
+      $('upcomingCount').textContent = `${lessons.length} ${lessonWord(lessons.length)}`;
+      if (!hasClass) renderEmpty($('upcomingLessons'), 'Нет расписания для этого класса');
+      else if (!lessons.length) renderEmpty($('upcomingLessons'), 'Нет уроков');
+      else $('upcomingLessons').innerHTML = renderLessonList(lessons);
+    }
+    const DAY_SLIDER_STEPS = DAYS.length - 1;
+    const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+    function sliderGeometry() {
+      const slider = $('daySlider');
+      const styles = getComputedStyle(slider);
+      const thumb = parseFloat(styles.getPropertyValue('--thumb-size')) || 56;
+      const inset = parseFloat(styles.getPropertyValue('--slider-inset')) || 10;
+      const start = inset + thumb / 2;
+      const span = Math.max(1, slider.clientWidth - 2 * start);
+      return { slider, thumb, inset, start, span };
+    }
+    function drawDaySlider(progress) {
+      const {slider, thumb, inset, start, span} = sliderGeometry();
+      const position = start + span * clamp(progress, 0, 1);
+      $('dayThumb').style.left = `${position}px`;
+      $('sliderFill').style.width = `${activeWeekday === 0 && !daySliderDragging ? 0 : Math.max(0, position + thumb / 2 - inset)}px`;
+      slider.dataset.index = String(activeWeekday);
+      const dots = $('sliderDots').children;
+      for (let i = 0; i < dots.length; i++) {
+        dots[i].style.left = `${start + span * i / DAY_SLIDER_STEPS}px`;
+        dots[i].classList.toggle('passed',i <= activeWeekday);
+      }
+    }
+    function renderWeekdays() {
+      const today = weekIndex(new Date());
+      const tomorrow = (today + 1) % 7;
+      const status = activeWeekday === today ? '(сегодня)' : activeWeekday === tomorrow ? '(завтра)' : '';
+      $('sliderDayName').textContent = DAYS[activeWeekday];
+      $('sliderDayStatus').textContent = status;
+      $('daySlider').setAttribute('aria-valuenow', String(activeWeekday));
+      $('daySlider').setAttribute('aria-valuetext', DAYS[activeWeekday] + (status ? ' ' + status : ''));
+      if (!daySliderDragging) drawDaySlider(activeWeekday / DAY_SLIDER_STEPS);
+    }
+    function selectWeekday(day) {
+      const next = clamp(Math.round(day), 0, DAY_SLIDER_STEPS);
+      if (next === activeWeekday) return;
+      activeWeekday = next;
+      renderWeekdays();
+      renderUpcoming();
+    }
+    function progressForPointer(clientX) {
+      const {slider, start, span} = sliderGeometry();
+      return clamp((clientX - slider.getBoundingClientRect().left - start) / span, 0, 1);
+    }
+    function render() {
+      const hasSchedule = validSchedule(schedule);
+      $('uploadOnboarding').hidden = !!hasSchedule;
+      $('scheduleGrid').hidden = !hasSchedule;
+      $('uploadTop').title = hasSchedule ? 'Заменить расписание' : 'Загрузить расписание';
+      $('editClass').disabled = !hasSchedule;
+      $('fileStatus').textContent = hasSchedule ? 'Загружено: ' + (schedule.sourceName || 'Расписание Excel') : '';
+      $('classText').textContent = currentClass || 'Класс';
+      $('classBadge').textContent = currentClass ? currentClass.match(/[АБВГД]$/)[0] : '—';
+      const day = weekIndex(new Date());
+      activeWeekday = day === 6 ? 0 : day;
+      renderWeekdays();
+      renderUpcoming();
+    }
+    function showGate(edit=false) {
+      $('gate').hidden = false;
+      document.body.style.overflow = 'hidden';
+      $('gateTitle').textContent = edit ? 'Изменить класс' : 'Твой класс';
+      if(currentClass) { const m=currentClass.match(/^(\d+)(.)$/); $('classNumber').value=m[1]; $('classLetter').value=m[2]; }
+    }
+    function closeGate() { $('gate').hidden = true; document.body.style.overflow = ''; }
+    function saveClass() {
+      const number = $('classNumber').value;
+      const letter = $('classLetter').value;
+      if(!number || !letter) return showToast('Выбери класс');
+      currentClass = number + letter;
+      settings.className = currentClass;
+      setStored(SETTINGS_KEY, settings);
+      closeGate();
+      render();
+      if (schedule && !schedule.classes[currentClass]) showToast('В файле нет этого класса');
+    }
+
+    let excelLibraryPromise;
+    function loadExcelLibrary() {
+      if(window.XLSX) return Promise.resolve();
+      if(excelLibraryPromise) return excelLibraryPromise;
+      const urls = [
+        'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+        'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js'
+      ];
+      excelLibraryPromise = (async() => {
+        for(const url of urls) {
+          try {
+            await new Promise((resolve, reject) => {
+              const script=document.createElement('script');
+              script.src=url; script.onload=()=>window.XLSX?resolve():reject(new Error('Нет XLSX')); script.onerror=()=>reject(new Error('Ошибка сети'));
+              document.head.appendChild(script);
+            });
+            return;
+          } catch {}
+        }
+        throw new Error('Нужен интернет для первого импорта Excel');
+      })().catch(err => { excelLibraryPromise = null; throw err; });
+      return excelLibraryPromise;
+    }
+    function parseWorkbook(workbook, filename) {
+      let selected=null, headers=null, headerRow=-1;
+      for(const sheetName of [...workbook.SheetNames].sort((a,b)=>Number(/расписан/i.test(b))-Number(/расписан/i.test(a)))) {
+        const rows = window.XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header:1, defval:'', raw:false, blankrows:false });
+        for(let r=0; r<Math.min(rows.length,40); r++) {
+          const cols={}; let matches=0;
+          (rows[r]||[]).forEach((item,col) => { const name=normalizeClass(item); if(name) { cols[name]=col; matches++; } });
+          if(matches>=4) { selected=rows; headers=cols; headerRow=r; break; }
+        }
+        if(selected) break;
+      }
+      if(!selected) throw new Error('Не найдена таблица классов');
+      const classes={};
+      Object.keys(headers).forEach(c => classes[c] = Object.fromEntries(DAYS.map((_,i)=>[String(i),[]])));
+      let dayIndex=-1, lessonCount=0;
+      for(let r=headerRow+1; r<selected.length; r++) {
+        const row=selected[r]||[];
+        const marker=looksLikeDay(row[0]); if(marker>=0) dayIndex=marker;
+        if(dayIndex<0) continue;
+        const n=Number(clean(row[1]));
+        if(!Number.isInteger(n) || n<1 || n>12) continue;
+        for(const [className,col] of Object.entries(headers)) {
+          const subject=clean(row[col]);
+          if(!subject) continue;
+          const room=clean(row[col+1]);
+          classes[className][String(dayIndex)].push({number:n,name:subject,room}); lessonCount++;
+        }
+      }
+      if(!lessonCount) throw new Error('Не найдены уроки');
+      const nearHeader = selected.slice(0, Math.min(headerRow+3,12)).flat().map(clean).filter(Boolean).join(' ');
+      let dates = getDateInfo(nearHeader) || getDateInfo(filename);
+      if(!dates) {
+        const today=new Date(), monday=addDays(today,-weekIndex(today)), saturday=addDays(monday,5);
+        dates={ start:dateKey(monday), end:dateKey(saturday), title:`${niceDate(monday)} — ${niceDate(saturday)}` };
+      }
+      return { ...dates, sourceName:filename, classes };
+    }
+    async function handleExcelFile(file) {
+      if(!file) return;
+      if(!/\.(xlsx|xls|xlsm)$/i.test(file.name)) return showToast('Нужен Excel файл');
+      try {
+        showToast('Загрузка...');
+        await loadExcelLibrary();
+        const bytes=await file.arrayBuffer();
+        const book=window.XLSX.read(bytes, { type:'array', cellDates:false });
+        schedule=parseWorkbook(book, file.name);
+        setStored(SCHEDULE_KEY, schedule);
+        render();
+        showToast('Расписание загружено');
+        if (!currentClass || !schedule.classes[currentClass]) showGate(!!currentClass);
+      } catch(err) {
+        console.error(err);
+        showToast(err?.message || 'Ошибка файла');
+      }
+    }
+
+    $('upcomingLessons').addEventListener('click', event => {
+      const button = event.target.closest('.break-toggle');
+      if (!button) return;
+      const minutes = Number(button.dataset.breakMinutes);
+      showToast(`Перемена — ${minutes} мин`);
+    });
+    // Точный отклик на касание: кружок следует за пальцем, после отпускания пружинно фиксируется.
+    // Вибрация / navigator.vibrate здесь намеренно не используются.
+    const daySlider = $('daySlider');
+    function trackDayPointer(event) {
+      const progress = progressForPointer(event.clientX);
+      selectWeekday(Math.round(progress * DAY_SLIDER_STEPS));
+      drawDaySlider(progress);
+    }
+    daySlider.addEventListener('pointerdown', event => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      event.preventDefault();
+      daySliderDragging = true;
+      daySlider.classList.add('dragging');
+      daySlider.setPointerCapture(event.pointerId);
+      trackDayPointer(event);
+    });
+    daySlider.addEventListener('pointermove', event => {
+      if (!daySliderDragging || !daySlider.hasPointerCapture(event.pointerId)) return;
+      trackDayPointer(event);
+    });
+    function settleDaySlider(event) {
+      if (!daySliderDragging) return;
+      daySliderDragging = false;
+      daySlider.classList.remove('dragging');
+      drawDaySlider(activeWeekday / DAY_SLIDER_STEPS);
+      if (event && daySlider.hasPointerCapture(event.pointerId)) daySlider.releasePointerCapture(event.pointerId);
+    }
+    daySlider.addEventListener('pointerup', settleDaySlider);
+    daySlider.addEventListener('pointercancel', settleDaySlider);
+    daySlider.addEventListener('lostpointercapture', settleDaySlider);
+    daySlider.addEventListener('keydown', event => {
+      let next;
+      if (event.key === 'ArrowRight' || event.key === 'ArrowUp') next = activeWeekday + 1;
+      else if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') next = activeWeekday - 1;
+      else if (event.key === 'Home') next = 0;
+      else if (event.key === 'End') next = DAY_SLIDER_STEPS;
+      else return;
+      event.preventDefault();
+      selectWeekday(next);
+    });
+    window.addEventListener('resize', () => drawDaySlider(activeWeekday / DAY_SLIDER_STEPS));
+    $('editClass').addEventListener('click', () => showGate(true));
+    $('saveClass').addEventListener('click', saveClass);
+    $('classNumber').addEventListener('keydown', e => { if (e.key === 'Enter') saveClass(); });
+    $('classLetter').addEventListener('keydown', e => { if (e.key === 'Enter') saveClass(); });
+     $('uploadTop').addEventListener('click', () => $('fileInput').click());
+     $('uploadFirst').addEventListener('click', () => $('fileInput').click());
+    $('fileInput').addEventListener('change', async e => { const file=e.target.files?.[0]; await handleExcelFile(file); e.target.value=''; });
+
+    function createStars() {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const field = $('stars');
+      const amount = window.innerWidth < 600 ? 45 : 78;
+      const fragment = document.createDocumentFragment();
+      for (let i = 0; i < amount; i++) {
+        const star = document.createElement('span');
+        star.className = 'spark' + (i % 13 === 0 ? ' spark-cross' : '');
+        const x = (Math.random() * 100).toFixed(2);
+        const y = (Math.random() * 100).toFixed(2);
+        const size = (i % 13 === 0 ? 3.2 : 1.2 + Math.random() * 1.8).toFixed(1);
+        const duration = (3.2 + Math.random() * 6.8).toFixed(2);
+        const delay = (-Math.random() * 12).toFixed(2);
+        star.style.cssText = `left:${x}%;top:${y}%;--size:${size}px;--duration:${duration}s;--delay:${delay}s`;
+        fragment.appendChild(star);
+      }
+      field.appendChild(fragment);
+    }
+    createStars();
+    render();
+    if(schedule && !currentClass) showGate();
+    document.documentElement.classList.add('js-ready');
+    drawDaySlider(activeWeekday / DAY_SLIDER_STEPS);
+  </script>
+</body>
+</html>
